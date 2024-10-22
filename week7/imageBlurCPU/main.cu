@@ -28,94 +28,48 @@ const int MAX_ITER = 10;
 
 void cpuCode(unsigned char *outArray, const unsigned char *inArray, const int w, const int h){
 	//Exercise: Write image blur
-	for (int i = 0; i < w*h*3; i++){
-		int Rsum = 0, Gsum = 0, Bsum = 0;
-		int index = i;
-		//자기 자신값 더하기
-		Rsum += inArray[index];
-		Gsum += inArray[index + 1];
-		Bsum += inArray[index + 2];
+	for (int row = 0; row < h; row++){
+		for (int col  =0; col < w; col++){
+			float sumR = 0.0f;
+			float sumG = 0.0f;
+			float sumB = 0.0f;
+			int pixels = 0;
+			
+			for (int rowOffest = -BLUR_SIZE; rowOffest < BLUR_SIZE + 1; rowOffest++){
+				for (int colOffset = -BLUR_SIZE; colOffset < BLUR_SIZE + 1; colOffset++){
+					int curRow = row + rowOffest; //작업중인 픽셀을 기준으로 -5 ~ +5 한 픽셀
+					int curCol = col + colOffset; //작업중인 픽셀을 기준으로 -5 ~ +5 한 픽셀
 
-		//오른쪽으로 5칸 더하기
-		for (int j = 0; j < BLUR_SIZE; j++){
-			index += 3; //오른쪽으로 한칸 이동
-			if(index < 0 || index > w*h*-1){
-
+					if (curRow >= 0 && curRow < h && curCol >= 0 && curCol < w){
+						int curIndex = (curRow*w + curCol)*3; //작업중인 픽셀을 기준으로 -5 ~ +5 한 픽셀의 RGB값에 접근하기 위한 인덱스
+						sumR += inArray[curIndex];
+						sumG += inArray[curIndex + 1];			
+						sumB += inArray[curIndex + 2];
+						pixels++;	
+					}
+				}
 			}
-			Rsum += inArray[index];
-			Gsum += inArray[index + 1];
-			Bsum += inArray[index + 2];
-		}
-		//왼쪽으로 5칸 더하기
-		for (int j = 0; j < BLUR_SIZE; j++){
-			index -= 3; //왼쪽으로 한칸 이동
-			Rsum += inArray[index];
-			Gsum += inArray[index + 1];
-			Bsum += inArray[index + 2];
-		}
-		//위쪽으로 5칸 더하기
-		for (int j = 0; j < BLUR_SIZE; j++){
-			index -= 9; //위쪽으로 한칸 이동
-			Rsum += inArray[index];
-			Gsum += inArray[index + 1];
-			Bsum += inArray[index + 2];
-		}
-		//아래쪽으로 5칸 더하기
-		for (int j = 0; j < BLUR_SIZE; j++){
-			index += 9; //아래쪽으로 한칸 이동
-			Rsum += inArray[index];
-			Gsum += inArray[index + 1];
-			Bsum += inArray[index + 2];
-		}
 
-		//오른쪽 대락선 아래쪽으로 5칸 더하기
-		for (int j = 0; j < BLUR_SIZE; j++){
-			index += 12; //오른쪽 대각선 아래로 한칸 이동
-			Rsum += inArray[index];
-			Gsum += inArray[index + 1];
-			Bsum += inArray[index + 2];
+			unsigned char avgR = (unsigned char)(sumR / pixels);
+			unsigned char avgG = (unsigned char)(sumG / pixels);
+			unsigned char avgB = (unsigned char)(sumB / pixels);
+
+			int index = (row*w + col)*3; //현재 픽셀의 번호에서, 그 픽셀의 RGB값에 접근하기 위해서 *3을 함
+			outArray[index] = avgR;
+			outArray[index + 1] = avgG;
+			outArray[index + 2] = avgB;
 		}
-
-		//오른쪽 대락선 위쪽으로 5칸 더하기
-		for (int j = 0; j < BLUR_SIZE; j++){
-			index -= 12; //오른쪽 대각선 위로 한칸 이동
-			Rsum += inArray[index];
-			Gsum += inArray[index + 1];
-			Bsum += inArray[index + 2];
-		}
-
-		//왼쪽 대락선 위쪽으로 5칸 더하기
-		for (int j = 0; j < BLUR_SIZE; j++){
-			index -= 6; //왼쪽 대각선 위로 한칸 이동
-			Rsum += inArray[index];
-			Gsum += inArray[index + 1];
-			Bsum += inArray[index + 2];
-		}
-
-		//왼쪽 대락선 아래쪽으로 5칸 더하기
-		for (int j = 0; j < BLUR_SIZE; j++){
-			index += 6; //왼쪽 대각선 아래로 한칸 이동
-			Rsum += inArray[index];
-			Gsum += inArray[index + 1];
-			Bsum += inArray[index + 2];
-		}
-
-		inArray[i] = Rsum/(11*11);
-		inArray[i+1] = Gsum/(11*11);
-		inArray[i+2] = Bsum/(11*11); 
-
 	}
 }
 
 int main(){
 	int w, h;
-	unsigned char *h_imageArray;
-	unsigned char *h_outImageArray;
+	unsigned char *h_imageArray; //포인터로 선언
+	unsigned char *h_outImageArray; //포인터로 선언
 
 	//This function will load the R/G/B values from a PPM file into an array and return the width (w) and height (h).
 	ppmLoad("./data/ewha_picture.ppm", &h_imageArray, &w, &h);
-	h_outImageArray = ()
-	cpuCode(h_outImageArray, h_imageArray, w, h);
+	h_outImageArray = (unsigned char*)malloc(w*h*3*sizeof(unsigned char));
 
 	clockMeasure *ckCpu = new clockMeasure("CPU CODE");
 
@@ -130,6 +84,9 @@ int main(){
 
 	//This function will store the R/G/B values from h_outImageArray into a PPM file.
 	ppmSave("ewha_picture_cpu.ppm", h_outImageArray, w, h);
+
+	free(h_imageArray);
+	free(h_outImageArray);
 
 	return 0;
 }
