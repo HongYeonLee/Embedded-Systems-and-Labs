@@ -165,43 +165,46 @@ void model::copy_weights_into_device(fLayer *layer){
 }
 
 __global__
-void perf_fc_exec_device(float *input, float *weight, float *bias, float *result, const unsigned weightSizeY, const unsigned weightSizeX, const unsigned biasSizeY, const unsigned biasSizeX){
+void perf_fc_exec_device(float *input, float *weight, float *bias, float *result, const unsigned weightSizeY, const unsigned weightSizeX, const unsigned biasSizeY, const unsigned biasSizeX, const int batchSize){
 	//Exercise: Write the code to perform a fully connected layer
-	int tid = blockSize.x * blockDim.x + threadIdx.x;
+	//스레드 블락의 수 = 1000, 각 스레드 블락당 스레드의 수 = 128
+	//각각의 블락이 하나의 이미지 담당
+	//스레드 블락의 번호 * 스레드 블락의 크기 + 각 스레드 블락에서 스레드의 번호
+	// ex. 3번째 스레드 블락의 12번째 스레드의 전체 번호 -> 3 * 128 + 12 
+	int tid = blockIdx.x * blockDim.x + threadIdx.x;
+	int imgIdx = blockIdx.x; //이미지의 번호 0 ~ 999
+	int biasIdx = threadIdx.x; //바이어스 번호, 0 ~ 99 반복
+	
+	//threadIdx.x는 128개 존재하니 범위 체크 필요
+	if (biasIdx < weightSizeY){ //100
+		result[tid] = bias[biasIdx]; //바이어스 값으로 초기화
+		
+		for (int i = 0; i < weightSizeX; i++){ //784
+			int inputIdx = imgIdx * weightSizeX + i; //784칸씩 뛰어넘어서 이미지에 접근
+			int weightIdx = biasIdx * weightSizeX + i; // 100 * 784 크기
+			result[tid] += input[inputIdx] * weight[weightIdx];
+		}
+		
+	}
 
 	//이미지 한개의 크기 = 784
 	//근데 이 이미지를 1000개 받을 거야
 	//이 이미지를 담은 배열이 1차원 배열이니까 그럼 배열의 크기는 784 * 1000
 	//그러면 한번에 784번씩 건너뛰면서 이미지에 접근해서 연산을 해야겠네
 	//근데 왜 for문을 10번만 돌지
-
-	for (int i = 0; i < 10; i++){
+	// for (int i = 0; i < 10; i++){
 		
-	}
-
-	
-
-	if (tid < weightSizeY){ //아웃풋이 총 100개 존재하는데 스레드는 128개 존재하니 범위 체크 필요
-		//바이어스 값으로 초기화
-		result[tid] = bias[tid];
-
-		for (int i = 0; i < weightSizeX; i++){ //784
-			//바이어스 값에 접근하기 위한 인덱스 계산, 0번째 결과물에는 weight 배열의 0행의 784개의 weight값 접근 필요
-			//n번째 결과물에는 weight배열의 n행의 784개의 weight값 접근 필요, 즉 n번째 행의 0번째 weight값은 n * 784 + 0
-			//tld가 col과 같은 역할
-			int curIdx = tid * weightSizeX + i; 
-			result[tid] += input[i] * weight[curIdx];
-		}
-	}
+	// }
 }
 
 __global__
-void perf_act_exec_device(float *input, unsigned inputSize){
+void perf_act_exec_device(float *input, unsigned inputSize, const int batchSize){
 	//Exercise: write the code to perform a activation function
-	int tid = blockIdx.x * blockDim.x + threadIdx.x;
-	if(tid < inputSize){//100
+	int tid = blockIdx.x * blockDim.x + threadIdx.x; 
+
+	if(tid < inputSize * batchSize){//100,000 - 총 result의 개수
 		if(input[tid]< 0.0f){
-			input[tid]
+			input[tid] = 0.0f;
 		}
 	}
 }
@@ -222,12 +225,12 @@ unsigned char model::perf_forward_exec_on_device(float *d_input){
 	float *input = d_input;
 	for(auto iter = m_layers.begin(); iter != m_layers.end(); iter++){
 		const unsigned tbSize = 128;
-		const int batch_size = 1000; //batch 사이즈
+		const int batchSize = 1000; //batch 사이즈
 		dim3 blockSize(tbSize, 1, 1); //스레드 블락 사이즈
-		dim3 gridSize(batch_size*ceil((float)(*iter)->num_weight[1]/tbSize), 1, 1); //스레드 블락의 개수 -> 1000개, 각각의 스레드 블락이 하나의 이미지를 계산하도록 담당
-		perf_fc_exec_device<<<gridSize, blockSize>>>(input, (*iter)->d_weights, (*iter)->d_bias, (*iter)->d_result, (*iter)->num_weight[1], (*iter)->num_weight[0], (*iter)->num_bias[1], (*iter)->num_bias[0]);
+		dim3 gridSize(batchSize * ceil((float)(*iter)->num_weight[1]/tbSize), 1, 1); //스레드 블락의 수 1000개, 각각의 스레드 블락이 하나의 이미지를 담당
+		perf_fc_exec_device<<<gridSize, blockSize>>>(input, (*iter)->d_weights, (*iter)->d_bias, (*iter)->d_result, (*iter)->num_weight[1], (*iter)->num_weight[0], (*iter)->num_bias[1], (*iter)->num_bias[0], batchSize);
 		if((*iter)->perf_act){
-			perf_act_exec_device<<<gridSize, blockSize>>>((*iter)->d_result, (*iter)->num_bias[0]);
+			perf_act_exec_device<<<gridSize, blockSize>>>((*iter)->d_result, (*iter)->num_bias[0], batchSize);
 		}
 		cudaError_t err=cudaDeviceSynchronize();
 		checkCudaError(err);

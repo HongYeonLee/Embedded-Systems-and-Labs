@@ -10,7 +10,8 @@
  *       Revision:  none
  *       Compiler:  nvcc
  *
- *         Author:  Myung Kuk Yoon 
+ *         Author:  이홍연
+ * 			   ID:	2371049
  *   Organization:  EWHA Womans University
  *
  * =====================================================================================
