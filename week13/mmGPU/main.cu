@@ -170,9 +170,7 @@ int main(){
 		unsigned cIdx = ((A_H/NUM_STREAMS) * i) * B_W;
 		ckGpuStream->clockResume();
 		gpuMatrixMul<<<streamGridSize, streamBlockSize, 0, streams[i]>>>(&d_a[idx], d_b, &d_c[cIdx], A_H/NUM_STREAMS, A_W, B_H, B_W);
-		err=cudaDeviceSynchronize();
 		ckGpuStream->clockPause();
-		checkCudaError(err);
 	}
 
 	for (int j = 0; j < NUM_STREAMS; j++){
